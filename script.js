@@ -1,6 +1,4 @@
-// ==========================================
-// 1. FIREBASE CONFIGURATION & AUTHORIZATION
-// ==========================================
+// Firebase Configuration
 const firebaseConfig = {
     apiKey: "AIzaSyCzTs_zw28wkHij4Jj9-EEW3XOpQ5si2yc",
     authDomain: "training-plus-212a2.firebaseapp.com",
@@ -11,1047 +9,230 @@ const firebaseConfig = {
     measurementId: "G-FX3XRSLD8W"
 };
 
-if (!firebase.apps.length) {
-    firebase.initializeApp(firebaseConfig);
-}
+// Initialize Firebase
+firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 
-// Enable Firestore offline persistence for reliability
-db.enablePersistence({ synchronizeTabs: true }).catch((err) => {
-    console.warn("Firestore persistence notice:", err.code);
-});
+// Application State
+let currentUserRole = null;
+let currentCourseId = null;
+let currentClassId = null;
 
-// Designated single-account email addresses
-const ALLOWED_MANAGER_EMAIL = "manager@gmail.com";  
-const ALLOWED_OPERATOR_EMAIL = "madasaleh.188@gmail.com";
+// Routing & View Management
+function showView(viewId) {
+    document.querySelectorAll('main > section').forEach(sec => sec.classList.add('hidden'));
+    const target = document.getElementById(viewId);
+    if (target) target.classList.remove('hidden');
 
-let currentUserData = null;
-let currentRole = null;
-let selectedRoleChoice = null;
-let studentList = [];
-let currentLang = 'en';
-const pageLoadedAt = new Date();
-
-// Reference doc for global single-session locks
-const sessionLockDoc = db.collection("system_status").doc("active_sessions");
-
-// ==========================================
-// 2. LANGUAGE TRANSLATIONS (ENGLISH / ARABIC)
-// ==========================================
-const translations = {
-    en: {
-        search_placeholder: "Search by name or CPR...",
-        download_all: "Download All (Excel)",
-        account: "Account",
-        logout: "Logout",
-        welcome_title: "Welcome",
-        welcome_subtitle: "Select your role to sign in to the Student Directory",
-        btn_google: "Sign in with Google",
-        student_directory: "Student Directory",
-        add_new_cpr: "+ Add New CPR",
-        register_cpr: "Register New CPR",
-        register_cpr_subtitle: "Enter a 9-digit CPR number to add a student.",
-        cpr_label: "CPR Number (9 Digits):",
-        btn_submit: "Submit Record",
-        btn_back: "Done / Back",
-        cpr_success_title: "CPR Added Successfully!",
-        cpr_success_subtitle: "Would you like to add another student CPR record?",
-        btn_add_another: "+ Add Another CPR",
-        btn_go_directory: "Go to Directory",
-        modal_account_title: "User Account",
-        lbl_user_id: "User ID:",
-        lbl_username: "Username:",
-        lbl_email: "Email:",
-        chat_header: "Team Group Chat",
-        chat_placeholder: "Type a message...",
-        btn_send: "Send",
-        btn_download_excel: "Download Excel",
-        btn_delete_student: "Delete Student",
-        lbl_full_name: "Full Name:",
-        lbl_cpr: "CPR:",
-        lbl_gender: "Gender:",
-        opt_male: "Male",
-        opt_female: "Female",
-        lbl_cv_doc: "Student CV Document",
-        btn_upload_cv: "Upload CV",
-        btn_view_cv: "📄 View / Download CV",
-        btn_delete_cv: "Delete CV",
-        lbl_no_cv: "No CV uploaded",
-        lbl_enrolled_courses: "Enrolled Courses",
-        ph_course: "Enter course name (e.g. Web Development)",
-        btn_add_course: "+ Add Course",
-        btn_delete_course: "Delete Course",
-        lbl_no_courses: "No courses added yet.",
-        lbl_no_students: "No student records found.",
-        lbl_student_number: "Student Number:",
-        lbl_major: "Major:",
-        alert_cpr_length: "CPR must be exactly 9 digits."
-    },
-    ar: {
-        search_placeholder: "البحث بالاسم أو الرقم الشخصي...",
-        download_all: "تحميل الكل (إكسل)",
-        account: "الحساب",
-        logout: "تسجيل الخروج",
-        welcome_title: "مرحباً بك",
-        welcome_subtitle: "اختر دورك لتسجيل الدخول إلى دليل الطلاب",
-        btn_google: "تسجيل الدخول باستخدام جوجل",
-        student_directory: "دليل الطلاب",
-        add_new_cpr: "+ إضافة رقم شخصي جديد",
-        register_cpr: "تسجيل رقم شخصي جديد",
-        register_cpr_subtitle: "أدخل الرقم الشخصي المكون من 9 أرقام لإضافة طالب.",
-        cpr_label: "الرقم الشخصي (9 أرقام):",
-        btn_submit: "إرسال السجل",
-        btn_back: "تم / العودة",
-        cpr_success_title: "تمت إضافة الرقم الشخصي بنجاح!",
-        cpr_success_subtitle: "هل ترغب في إضافة سجل طالب آخر؟",
-        btn_add_another: "+ إضافة رقم شخصي آخر",
-        btn_go_directory: "الانتقال إلى الدليل",
-        modal_account_title: "حساب المستخدم",
-        lbl_user_id: "معرف المستخدم:",
-        lbl_username: "اسم المستخدم:",
-        lbl_email: "البريد الإلكتروني:",
-        chat_header: "محادثة الفريق الجماعية",
-        chat_placeholder: "اكتب رسالة...",
-        btn_send: "إرسال",
-        btn_download_excel: "تحميل إكسل",
-        btn_delete_student: "حذف الطالب",
-        lbl_full_name: "الاسم الكامل:",
-        lbl_cpr: "الرقم الشخصي:",
-        lbl_gender: "الجنس:",
-        opt_male: "ذكر",
-        opt_female: "أنثى",
-        lbl_cv_doc: "مستند السيرة الذاتية للطالب",
-        btn_upload_cv: "رفع السيرة الذاتية",
-        btn_view_cv: "📄 عرض / تحميل السيرة الذاتية",
-        btn_delete_cv: "حذف السيرة الذاتية",
-        lbl_no_cv: "لم يتم رفع سيرة ذاتية",
-        lbl_enrolled_courses: "الدورات المسجلة",
-        ph_course: "أدخل اسم الدورة (مثال: تطوير الويب)",
-        btn_add_course: "+ إضافة دورة",
-        btn_delete_course: "حذف الدورة",
-        lbl_no_courses: "لم يتم إضافة دورات بعد.",
-        lbl_no_students: "لم يتم العثور على سجلات للطلاب.",
-        lbl_student_number: "الرقم الجامعي:",
-        lbl_major: "التخصص:",
-        alert_cpr_length: "يجب أن يتكون الرقم الشخصي من 9 أرقام."
-    }
-};
-
-function toggleLanguage() {
-    currentLang = (currentLang === 'en') ? 'ar' : 'en';
-    document.documentElement.dir = (currentLang === 'ar') ? 'rtl' : 'ltr';
-    applyLanguageTranslations();
-    renderStudentDirectory(studentList);
-}
-
-function applyLanguageTranslations() {
-    const langObj = translations[currentLang];
-
-    document.querySelectorAll('[data-i18n]').forEach(el => {
-        const key = el.getAttribute('data-i18n');
-        if (langObj && langObj[key]) el.innerText = langObj[key];
-    });
-
-    document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
-        const key = el.getAttribute('data-i18n-placeholder');
-        if (langObj && langObj[key]) el.placeholder = langObj[key];
-    });
-}
-
-// Monitor Auth State
-auth.onAuthStateChanged((user) => {
-    if (user) {
-        currentUserData = user;
-        currentRole = sessionStorage.getItem("userRole") || "Employee";
-        updateUserUI(true);
-        listenToStudentDirectory();
-        listenToGroupChat();
+    if (viewId === 'view-auth') {
+        document.getElementById('logout-btn').classList.add('hidden');
+        document.getElementById('account-btn').classList.add('hidden');
+        document.getElementById('user-display-email').textContent = '';
     } else {
-        currentUserData = null;
-        currentRole = null;
-        updateUserUI(false);
+        document.getElementById('logout-btn').classList.remove('hidden');
+        document.getElementById('account-btn').classList.remove('hidden');
     }
-});
+}
 
-// ==========================================
-// 3. ROLE SELECTION & AUTHENTICATION
-// ==========================================
+function showOperatorSubView(subViewId) {
+    document.querySelectorAll('.op-subview').forEach(el => el.classList.add('hidden'));
+    document.getElementById(subViewId).classList.remove('hidden');
+
+    if (subViewId === 'op-courses-view') fetchCourses();
+}
 
 function selectRole(role) {
-    selectedRoleChoice = role;
+    document.querySelectorAll('.role-btn').forEach(btn => btn.classList.remove('active'));
+    document.getElementById(`role-btn-${role}`).classList.add('active');
 
-    ['manager', 'operator', 'employee'].forEach(r => {
-        const btn = document.getElementById(`role-btn-${r}`);
-        const form = document.getElementById(`form-${r}`);
-        if (btn) {
-            btn.style.background = '#f8fafc';
-            btn.style.color = '#334155';
-            btn.style.borderColor = '#cbd5e1';
-        }
-        if (form) form.classList.add('hidden');
-    });
-
-    const activeBtn = document.getElementById(`role-btn-${role}`);
-    if (activeBtn) {
-        activeBtn.style.background = '#2b6cb0';
-        activeBtn.style.color = '#ffffff';
-        activeBtn.style.borderColor = '#2b6cb0';
-    }
-
-    document.getElementById('role-prompt')?.classList.add('hidden');
-    document.getElementById(`form-${role}`)?.classList.remove('hidden');
+    document.querySelectorAll('.auth-box').forEach(box => box.classList.add('hidden'));
+    document.getElementById(`form-${role}`).classList.remove('hidden');
 }
 
-async function signInRoleWithGoogle(role) {
+// Authentication Functions
+function signInRoleWithGoogle(role) {
     const provider = new firebase.auth.GoogleAuthProvider();
-
-    try {
-        const result = await auth.signInWithPopup(provider);
-        const user = result.user;
-        const userEmail = (user.email || "").toLowerCase();
-
-        if (role === 'manager' && userEmail !== ALLOWED_MANAGER_EMAIL.toLowerCase()) {
-            await auth.signOut();
-            alert(`Access Denied: Only ${ALLOWED_MANAGER_EMAIL} is authorized to sign in as Manager.`);
-            return;
-        }
-
-        if (role === 'operator' && userEmail !== ALLOWED_OPERATOR_EMAIL.toLowerCase()) {
-            await auth.signOut();
-            alert(`Access Denied: Only ${ALLOWED_OPERATOR_EMAIL} is authorized to sign in as Operator.`);
-            return;
-        }
-
-        const formattedRole = role.charAt(0).toUpperCase() + role.slice(1);
-        sessionStorage.setItem("userRole", formattedRole);
-        currentRole = formattedRole;
-
-        updateUserUI(true);
-
-    } catch (error) {
-        console.error(`${role} Google Login Error:`, error);
-        alert(`Sign-In Failed: ${error.message}`);
-    }
+    auth.signInWithPopup(provider)
+        .then((result) => {
+            currentUserRole = role;
+            return db.collection('users').doc(result.user.uid).set({
+                email: result.user.email,
+                role: role,
+                displayName: result.user.displayName || ''
+            }, { merge: true });
+        })
+        .then(() => {
+            routeUserByRole(currentUserRole);
+        })
+        .catch((error) => console.error("Sign-in Error:", error));
 }
 
-async function signInWithGoogle() {
-    const provider = new firebase.auth.GoogleAuthProvider();
-    try {
-        const result = await auth.signInWithPopup(provider);
-        const user = result.user;
-        const userEmail = (user.email || "").toLowerCase();
-
-        if (userEmail === ALLOWED_OPERATOR_EMAIL.toLowerCase()) {
-            await auth.signOut();
-            sessionStorage.removeItem("userRole");
-            alert("This email is registered as an Operator. Please select the Operator role to sign in.");
-            return;
-        }
-
-        if (userEmail === ALLOWED_MANAGER_EMAIL.toLowerCase()) {
-            await auth.signOut();
-            sessionStorage.removeItem("userRole");
-            alert("This email is registered as a Manager. Please select the Manager role to sign in.");
-            return;
-        }
-
-        sessionStorage.setItem("userRole", "Employee");
-        currentRole = "Employee";
-        updateUserUI(true);
-    } catch (error) {
-        console.error("Google Sign-In Error:", error);
-        alert("Sign-In Failed: " + error.message);
-    }
+function handleSignOut() {
+    auth.signOut().then(() => showView('view-auth'));
 }
 
-function updateUserUI(isLoggedIn) {
-    document.getElementById('search-box')?.classList.toggle('hidden', !isLoggedIn);
-    document.getElementById('download-all-btn')?.classList.toggle('hidden', !isLoggedIn);
-    document.getElementById('account-btn')?.classList.toggle('hidden', !isLoggedIn);
-    document.getElementById('logout-btn')?.classList.toggle('hidden', !isLoggedIn);
-
-    if (isLoggedIn && currentUserData) {
-        const idEl = document.getElementById('modal-userid');
-        const nameEl = document.getElementById('modal-username');
-        const emailEl = document.getElementById('modal-email');
-        const roleEl = document.getElementById('modal-role');
-
-        const simpleUserId = currentUserData.uid 
-            ? `#USR-${currentUserData.uid.substring(0, 6).toUpperCase()}`
-            : '#10001';
-
-        if (idEl) idEl.innerText = simpleUserId;
-        if (nameEl) nameEl.innerText = currentUserData.displayName || currentUserData.email?.split('@')[0] || "User";
-        if (emailEl) emailEl.innerText = currentUserData.email || '';
-        if (roleEl) roleEl.innerText = currentRole || 'Employee';
-
+function routeUserByRole(role) {
+    if (role === 'operator') {
+        showView('view-operator-dashboard');
+        showOperatorSubView('op-home-view');
+        loadAccountData();
+    } else {
         showView('view-home');
+    }
+}
+
+// Auth State Observer
+auth.onAuthStateChanged((user) => {
+    if (user) {
+        document.getElementById('user-display-email').textContent = user.email;
+        db.collection('users').doc(user.uid).get().then((doc) => {
+            if (doc.exists && doc.data().role) {
+                currentUserRole = doc.data().role;
+                routeUserByRole(currentUserRole);
+            } else {
+                showView('view-home');
+            }
+        });
     } else {
         showView('view-auth');
-    }
-}
-
-async function logoutUser() {
-    const normalizedRole = (currentRole || "").toLowerCase();
-    
-    if (normalizedRole === "manager" || normalizedRole === "operator") {
-        const lockKey = normalizedRole === 'manager' ? 'active_manager' : 'active_operator';
-        try {
-            await sessionLockDoc.set({ [lockKey]: null }, { merge: true });
-        } catch (e) {
-            console.error("Error clearing session lock:", e);
-        }
-    }
-    
-    sessionStorage.removeItem("userRole");
-    await auth.signOut();
-    showView('view-auth');
-}
-
-async function deleteAccount() {
-    const user = auth.currentUser;
-    if (!user) {
-        alert("No active user session found.");
-        return;
-    }
-
-    const warningMessage = "WARNING: Are you sure you want to delete your account?\n\n" +
-        "This action is permanent and CANNOT be undone. " +
-        "All of your account data, registered records, and personal settings will be permanently deleted.";
-
-    if (!confirm(warningMessage)) return;
-
-    const confirmName = prompt(`Type "DELETE" to permanently remove your account (${user.email}):`);
-    if (confirmName !== "DELETE") {
-        alert("Account deletion cancelled.");
-        return;
-    }
-
-    try {
-        const userUid = user.uid;
-
-        await db.collection("users").doc(userUid).delete().catch(() => {});
-
-        const role = (sessionStorage.getItem("userRole") || "").toLowerCase();
-        if (role === "operator" || role === "manager") {
-            const lockKey = role === 'manager' ? 'active_manager' : 'active_operator';
-            await sessionLockDoc.set({ [lockKey]: null }, { merge: true }).catch(() => {});
-        }
-
-        sessionStorage.clear();
-        await user.delete();
-
-        alert("Your account and all associated data have been permanently deleted.");
-        showView('view-auth');
-
-    } catch (error) {
-        console.error("Error deleting account:", error);
-
-        if (error.code === 'auth/requires-recent-login') {
-            alert("Security Notice: Deleting your account requires a fresh login. Please log out, sign in again, and retry deleting your account.");
-            await auth.signOut();
-            showView('view-auth');
-        } else {
-            alert("Failed to delete account: " + error.message);
-        }
-    }
-}
-
-// ==========================================
-// 4. CPR RECORD MANAGEMENT
-// ==========================================
-async function addStudentCPR() {
-    const cprInput = document.getElementById('cpr-input');
-    if (!cprInput) return;
-
-    const cpr = cprInput.value.trim();
-
-    if (!/^\d{9}$/.test(cpr)) {
-        const errorMsg = (translations[currentLang] && translations[currentLang].alert_cpr_length) 
-            ? translations[currentLang].alert_cpr_length 
-            : "CPR must be exactly 9 digits.";
-        alert(errorMsg);
-        return;
-    }
-
-    try {
-        const currentUser = firebase.auth().currentUser;
-        if (!currentUser) {
-            alert("You must be logged in to add a CPR.");
-            return;
-        }
-
-        const accountUsername = currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : "User");
-        const currentUid = currentUser.uid;
-        const currentEmail = currentUser.email;
-
-        const docRef = db.collection("students").doc(cpr);
-        const docSnap = await docRef.get();
-
-        if (docSnap.exists) {
-            const existingData = docSnap.data();
-            const creatorUid = existingData.createdByUid;
-            const creatorEmail = existingData.createdByEmail || existingData.added_by;
-
-            const isMyRecord = (creatorUid && creatorUid === currentUid) || 
-                               (creatorEmail && creatorEmail === currentEmail);
-
-            if (isMyRecord) {
-                alert(`This CPR (${cpr}) is already registered by you.`);
-            } else {
-                let username = existingData.createdByName || 
-                               existingData.username || 
-                               existingData.name || 
-                               existingData.added_by_name;
-
-                if (!username || username === "User") {
-                    const rawEmail = existingData.createdByEmail || existingData.added_by || existingData.email;
-                    username = (rawEmail && rawEmail.includes('@')) ? rawEmail.split('@')[0] : (rawEmail || "mada saleh");
-                }
-
-                alert(`This CPR (${cpr}) is already registered by user: ${username}`);
-            }
-            return;
-        }
-
-        await docRef.set({
-            cpr: cpr,
-            studentNumber: cpr,
-            major: "N/A",
-            phone: "N/A",
-            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-            createdByUid: currentUid,
-            createdByEmail: currentEmail,
-            createdByName: accountUsername,
-            added_by: currentEmail
-        });
-
-        cprInput.value = '';
-        showView('view-cpr-success');
-
-    } catch (error) {
-        console.error("Error processing CPR addition:", error);
-        alert("Failed to process request: " + error.message);
-    }
-}
-
-function resetAndAddAnotherCPR() {
-    const cprInput = document.getElementById('cpr-input');
-    if (cprInput) cprInput.value = '';
-    showView('view-add-cpr');
-    setTimeout(() => { if (cprInput) cprInput.focus(); }, 100);
-}
-
-// ==========================================
-// 5. STUDENT DIRECTORY & EXCEL EXPORTS
-// ==========================================
-function listenToStudentDirectory() {
-    if (!currentUserData) return;
-    const currentUid = currentUserData.uid;
-    const activeEmail = currentUserData.email;
-    const activeName = currentUserData.displayName;
-
-    db.collection('students').onSnapshot((snapshot) => {
-        studentList = [];
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            
-            const isMine = (data.createdByUid && data.createdByUid === currentUid) ||
-                           (data.added_by && data.added_by === activeEmail) ||
-                           (data.added_by && data.added_by === activeName) ||
-                           (data.createdByEmail && data.createdByEmail === activeEmail);
-
-            if (isMine) {
-                studentList.push({ id: doc.id, ...data });
-            }
-        });
-
-        renderStudentDirectory(studentList);
-    }, (error) => {
-        console.error("Error fetching student directory:", error);
-    });
-}
-
-function handleSearch() {
-    const q = document.getElementById('search-input')?.value.toLowerCase().trim() || "";
-    const filtered = studentList.filter(s => 
-        (s.name && s.name.toLowerCase().includes(q)) || 
-        (s.cpr && s.cpr.includes(q)) ||
-        (s.studentNumber && s.studentNumber.toLowerCase().includes(q)) ||
-        (s.major && s.major.toLowerCase().includes(q))
-    );
-    renderStudentDirectory(filtered);
-}
-
-function downloadAllStudentsData() {
-    if (studentList.length === 0) {
-        alert("No student data available to download.");
-        return;
-    }
-
-    if (typeof XLSX === 'undefined') {
-        alert("Excel export library is loading, please try again in a second.");
-        return;
-    }
-
-    const studentsRows = studentList.map(s => {
-        const courseNames = Array.isArray(s.courses) ? s.courses.map(c => c.name).join(', ') : 'None';
-        return {
-            "Full Name": s.name || '',
-            "Student Number": s.studentNumber || '',
-            "Major": s.major || '',
-            "CPR": s.cpr || '',
-            "Gender": s.gender || '',
-            "Email": s.email || '',
-            "Enrolled Courses": courseNames,
-            "CV Status": s.cvUrl ? 'Uploaded' : 'No CV',
-            "Added By": s.added_by || s.createdByName || ''
-        };
-    });
-
-    const courseRows = [];
-    studentList.forEach(s => {
-        if (Array.isArray(s.courses) && s.courses.length > 0) {
-            s.courses.forEach(c => {
-                courseRows.push({
-                    "Student Name": s.name || '',
-                    "CPR": s.cpr || '',
-                    "Course Name": c.name || '',
-                    "Date Added": c.addedAt || ''
-                });
-            });
-        }
-    });
-
-    const wb = XLSX.utils.book_new();
-    const wsStudents = XLSX.utils.json_to_sheet(studentsRows);
-    XLSX.utils.book_append_sheet(wb, wsStudents, "All Students");
-
-    if (courseRows.length > 0) {
-        const wsCourses = XLSX.utils.json_to_sheet(courseRows);
-        XLSX.utils.book_append_sheet(wb, wsCourses, "Course Details");
-    }
-
-    const todayStr = new Date().toISOString().slice(0, 10);
-    XLSX.writeFile(wb, `All_Students_Data_${todayStr}.xlsx`);
-}
-
-function downloadSingleStudentData(studentId) {
-    const student = studentList.find(s => s.id === studentId);
-    if (!student) {
-        alert("Student record not found.");
-        return;
-    }
-
-    if (typeof XLSX === 'undefined') {
-        alert("Excel export library is loading, please try again in a second.");
-        return;
-    }
-
-    const recordRows = [
-        ["STUDENT RECORD INFORMATION", ""],
-        ["Full Name", student.name || 'N/A'],
-        ["Student Number", student.studentNumber || 'N/A'],
-        ["Major", student.major || 'N/A'],
-        ["CPR", student.cpr || 'N/A'],
-        ["Gender", student.gender || 'N/A'],
-        ["Email", student.email || 'N/A'],
-        ["Added By", student.added_by || student.createdByName || 'N/A'],
-        ["CV Upload Status", student.cvUrl ? `Uploaded (${student.cvName || 'File'})` : 'No CV Uploaded'],
-        ["", ""],
-        ["ENROLLED COURSES", "ADDED DATE"]
-    ];
-
-    if (Array.isArray(student.courses) && student.courses.length > 0) {
-        student.courses.forEach(c => {
-            recordRows.push([c.name, c.addedAt || '']);
-        });
-    } else {
-        recordRows.push(["No courses enrolled", ""]);
-    }
-
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet(recordRows);
-    XLSX.utils.book_append_sheet(wb, ws, "Student Details");
-
-    XLSX.writeFile(wb, `Student_${student.cpr || studentId}.xlsx`);
-}
-
-function renderStudentDirectory(list) {
-    const container = document.getElementById('student-container');
-    if (!container) return;
-    container.innerHTML = "";
-
-    const t = translations[currentLang] || translations.en;
-
-    if (list.length === 0) {
-        container.innerHTML = `<p style="text-align:center; color:#a0aec0; padding:20px;">${t.lbl_no_students}</p>`;
-        return;
-    }
-
-    list.forEach((student) => {
-        const item = document.createElement('div');
-        item.className = "student-item";
-
-        let coursesHTML = "";
-        if (student.courses && Array.isArray(student.courses) && student.courses.length > 0) {
-            coursesHTML = student.courses.map((c, index) => `
-                <li style="display:flex; justify-content:space-between; align-items:center; background:#f8fafc; padding:8px 12px; border: 1px solid #e2e8f0; border-radius:6px; margin-bottom:6px; font-size:0.88rem;">
-                    <div>
-                        <strong style="color: #2d3748;">${escapeHTML(c.name)}</strong> 
-                        <span style="color:#718096; margin-left:8px; font-size:0.80rem;">(${escapeHTML(c.addedAt || '')})</span>
-                    </div>
-                    <button type="button" onclick="removeCourse('${student.id}', ${index})" 
-                        style="background: #fff5f5; border: 1px solid #feb2b2; color: #e53e3e; cursor: pointer; font-size: 0.75rem; padding: 4px 10px; border-radius: 100px; transition: all 0.2s;" 
-                        onmouseover="this.style.background='#fee2e2'" 
-                        onmouseout="this.style.background='#fff5f5'"
-                    >
-                        ${t.btn_delete_course}
-                    </button>
-                </li>
-            `).join("");
-        } else {
-            coursesHTML = `<p style="font-size:0.82rem; color:#a0aec0; margin-top:4px;">${t.lbl_no_courses}</p>`;
-        }
-
-        const cvDisplay = student.cvUrl 
-            ? `<div style="display: flex; align-items: center; gap: 8px;">
-                <a href="${student.cvUrl}" download="${student.cvName || 'Student_CV'}" target="_blank" style="color:var(--accent-slate-blue, #2b6cb0); font-weight:600; text-decoration:underline; font-size:0.85rem;">${t.btn_view_cv}</a>
-                <button type="button" onclick="deleteStudentCV('${student.id}')" 
-                    style="background: #fff5f5; border: 1px solid #feb2b2; color: #e53e3e; cursor: pointer; font-size: 0.75rem; padding: 4px 10px; border-radius: 100px; transition: all 0.2s;" 
-                    onmouseover="this.style.background='#fee2e2'" 
-                    onmouseout="this.style.background='#fff5f5'"
-                >
-                    ${t.btn_delete_cv}
-                </button>
-               </div>`
-            : `<span style="color:#a0aec0; font-size:0.85rem;">${t.lbl_no_cv}</span>`;
-
-        item.innerHTML = `
-            <div class="student-header" onclick="this.nextElementSibling.classList.toggle('hidden')">
-                <span>${escapeHTML(student.name || 'Unnamed Student')} (${escapeHTML(student.cpr)})</span>
-                <svg class="arrow-icon" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"></polyline></svg>
-            </div>
-            <div class="student-details hidden">
-                <div class="student-actions-wrapper" style="display: flex; gap: 8px; justify-content: flex-end; margin-bottom: 12px;">
-                    <button class="nav-btn" onclick="downloadSingleStudentData('${student.id}')" style="background: #edf2f7; border: 1px solid #cbd5e0; color: #2d3748; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.82rem;">${t.btn_download_excel}</button>
-                    <button class="delete-icon-btn" onclick="deleteStudent('${student.id}')">${t.btn_delete_student}</button>
-                </div>
-                
-                <div class="grid-form">
-                    <label>${t.lbl_full_name} 
-                        <input type="text" value="${escapeHTML(student.name || '')}" onchange="updateStudentField('${student.id}', 'name', this.value)">
-                    </label>
-                    <label>${t.lbl_student_number} 
-                        <input type="text" value="${escapeHTML(student.studentNumber || '')}" onchange="updateStudentField('${student.id}', 'studentNumber', this.value)">
-                    </label>
-                    <label>${t.lbl_major} 
-                        <input type="text" value="${escapeHTML(student.major || '')}" onchange="updateStudentField('${student.id}', 'major', this.value)">
-                    </label>
-                    <label>${t.lbl_cpr} 
-                        <input type="text" value="${escapeHTML(student.cpr)}" readonly>
-                    </label>
-                    <label>${t.lbl_gender} 
-                        <select onchange="updateStudentField('${student.id}', 'gender', this.value)">
-                            <option value="male" ${student.gender === 'male' ? 'selected' : ''}>${t.opt_male}</option>
-                            <option value="female" ${student.gender === 'female' ? 'selected' : ''}>${t.opt_female}</option>
-                        </select>
-                    </label>
-                    <label>${t.lbl_email} 
-                        <input type="email" value="${escapeHTML(student.email || '')}" onchange="updateStudentField('${student.id}', 'email', this.value)">
-                    </label>
-                </div>
-
-                <hr style="margin: 16px 0; border: none; border-top: 1px solid var(--border-color, #e2e8f0);">
-
-                <div style="margin-bottom: 16px;">
-                    <h4 style="margin-bottom: 8px; color: var(--accent-slate-blue, #2b6cb0);">${t.lbl_cv_doc}</h4>
-                    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                        <input type="file" id="cv-input-${student.id}" accept=".pdf,.doc,.docx" style="font-size: 0.85rem;">
-                        <button type="button" class="primary-btn" onclick="uploadStudentCV('${student.id}')" style="padding: 6px 12px; font-size: 0.85rem;">${t.btn_upload_cv}</button>
-                        <div style="margin-left: auto;">${cvDisplay}</div>
-                    </div>
-                </div>
-
-                <hr style="margin: 16px 0; border: none; border-top: 1px solid var(--border-color, #e2e8f0);">
-
-                <div>
-                    <h4 style="margin-bottom: 8px; color: var(--accent-slate-blue, #2b6cb0);">${t.lbl_enrolled_courses}</h4>
-                    <div style="display: flex; gap: 8px; margin-bottom: 12px;">
-                        <input type="text" id="course-input-${student.id}" placeholder="${t.ph_course}" style="flex: 1; padding: 8px; border: 1px solid var(--border-color, #e2e8f0); border-radius: 6px; font-size: 0.85rem;">
-                        <button type="button" class="primary-btn" onclick="addCourseToStudent('${student.id}')" style="padding: 6px 14px; font-size: 0.85rem;">${t.btn_add_course}</button>
-                    </div>
-                    
-                    <ul style="list-style: none; padding: 0; margin: 0;">
-                        ${coursesHTML}
-                    </ul>
-                </div>
-            </div>
-        `;
-        container.appendChild(item);
-    });
-}
-
-async function updateStudentField(id, field, value) {
-    try {
-        await db.collection('students').doc(id).update({ [field]: value });
-    } catch (err) {
-        console.error("Update field error:", err);
-    }
-}
-
-async function deleteStudent(id) {
-    if (confirm("Delete this student entry?")) {
-        await db.collection('students').doc(id).delete();
-    }
-}
-
-// ==========================================
-// 6. COURSE MANAGEMENT
-// ==========================================
-async function addCourseToStudent(studentId) {
-    const inputEl = document.getElementById(`course-input-${studentId}`);
-    if (!inputEl) return;
-
-    const courseName = inputEl.value.trim();
-    if (!courseName) {
-        alert("Please enter a course name.");
-        return;
-    }
-
-    const now = new Date();
-    const formattedDateTime = now.toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric', 
-        year: 'numeric' 
-    }) + ", " + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-    const newCourseObj = {
-        name: courseName,
-        addedAt: formattedDateTime
-    };
-
-    try {
-        const studentRef = db.collection('students').doc(studentId);
-        const docSnap = await studentRef.get();
-        if (!docSnap.exists) return;
-
-        const data = docSnap.data();
-        let currentCourses = Array.isArray(data.courses) ? data.courses : [];
-        currentCourses.push(newCourseObj);
-
-        await studentRef.update({ courses: currentCourses });
-        inputEl.value = "";
-    } catch (err) {
-        console.error("Error adding course:", err);
-        alert("Error adding course: " + err.message);
-    }
-}
-
-async function removeCourse(studentId, courseIndex) {
-    if (!confirm("Are you sure you want to delete this course?")) return;
-
-    try {
-        const studentRef = db.collection('students').doc(studentId);
-        const docSnap = await studentRef.get();
-
-        if (docSnap.exists) {
-            const data = docSnap.data();
-            let existingCourses = Array.isArray(data.courses) ? data.courses : [];
-            existingCourses.splice(courseIndex, 1);
-            await studentRef.update({ courses: existingCourses });
-        }
-    } catch (err) {
-        console.error("Error removing course:", err);
-        alert("Failed to delete course: " + err.message);
-    }
-}
-
-// ==========================================
-// 7. CV UPLOAD & DELETE
-// ==========================================
-async function uploadStudentCV(studentId) {
-    const fileInput = document.getElementById(`cv-input-${studentId}`);
-    if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
-        alert("Please select a file first!");
-        return;
-    }
-
-    const file = fileInput.files[0];
-    if (file.size > 700 * 1024) {
-        alert("File size is too large! Please select a file under 700KB.");
-        return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = async function (e) {
-        try {
-            await db.collection('students').doc(studentId).update({
-                cvUrl: e.target.result,
-                cvName: file.name
-            });
-            alert("CV uploaded and saved successfully!");
-        } catch (err) {
-            console.error("Firestore CV update error:", err);
-            alert("Failed to save CV: " + err.message);
-        }
-    };
-    reader.readAsDataURL(file);
-}
-
-async function deleteStudentCV(studentId) {
-    if (!confirm("Are you sure you want to delete this CV?")) return;
-
-    try {
-        await db.collection('students').doc(studentId).update({
-            cvUrl: firebase.firestore.FieldValue.delete(),
-            cvName: firebase.firestore.FieldValue.delete()
-        });
-        alert("CV deleted successfully!");
-    } catch (err) {
-        console.error("Error deleting CV:", err);
-        alert("Failed to delete CV: " + err.message);
-    }
-}
-
-// ==========================================
-// 8. REAL-TIME GROUP CHAT & EMOJI PICKER
-// ==========================================
-function listenToGroupChat() {
-    let query = db.collection('chat_messages');
-    
-    // Attempt ordered fetch, fall back to default if index missing
-    try {
-        query = query.orderBy('timestamp', 'asc').limitToLast(50);
-    } catch (e) {
-        console.warn("Index not ready yet for chat_messages ordering.");
-    }
-
-    query.onSnapshot((snapshot) => {
-        const box = document.getElementById('chat-messages');
-        if (!box) return;
-
-        box.innerHTML = "";
-
-        const currentUserId = currentUserData ? currentUserData.uid : null;
-        const currentName = currentUserData ? (currentUserData.displayName || currentUserData.email?.split('@')[0]) : null;
-
-        let unreadCount = 0;
-        const isChatHidden = document.getElementById('chat-window')?.classList.contains('hidden');
-        const savedLastRead = localStorage.getItem('lastReadChatTime');
-        const lastReadTime = savedLastRead ? new Date(savedLastRead) : pageLoadedAt;
-
-        snapshot.forEach(doc => {
-            const m = doc.data();
-            const div = document.createElement('div');
-            
-            const senderName = m.username || "Anonymous";
-            const textContent = m.message || "";
-            
-            const isMe = (m.uid && m.uid === currentUserId) || (senderName === currentName);
-            const msgDate = m.timestamp && typeof m.timestamp.toDate === 'function' 
-                ? m.timestamp.toDate() 
-                : new Date();
-
-            if (isChatHidden && !isMe && msgDate > lastReadTime) {
-                unreadCount++;
-            }
-            
-            div.className = `chat-msg ${isMe ? 'my-msg' : 'other-msg'}`;
-            
-            let timeStr = "";
-            if (m.timestamp && typeof m.timestamp.toDate === 'function') {
-                const now = new Date();
-                const yesterday = new Date(now);
-                yesterday.setDate(now.getDate() - 1);
-                
-                const isToday = msgDate.toDateString() === now.toDateString();
-                const isYesterday = msgDate.toDateString() === yesterday.toDateString();
-                const timeOnly = msgDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-                if (isToday) {
-                    timeStr = timeOnly;
-                } else if (isYesterday) {
-                    timeStr = `Yesterday ${timeOnly}`;
-                } else {
-                    const dateOnly = msgDate.toLocaleDateString([], { month: 'short', day: 'numeric' });
-                    timeStr = `${dateOnly}, ${timeOnly}`;
-                }
-            } else {
-                timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            }
-
-            div.innerHTML = `
-                <div class="msg-header">
-                    <strong class="msg-sender">${escapeHTML(senderName)}</strong>
-                    <span class="msg-time">${timeStr}</span>
-                </div>
-                <div class="msg-body">${escapeHTML(textContent)}</div>
-            `;
-            box.appendChild(div);
-        });
-
-        const badgeEl = document.getElementById('chat-unread-badge');
-        if (badgeEl) {
-            if (unreadCount > 0) {
-                badgeEl.innerText = unreadCount > 99 ? '99+' : unreadCount;
-                badgeEl.classList.remove('hidden');
-            } else {
-                badgeEl.classList.add('hidden');
-            }
-        }
-
-        box.scrollTop = box.scrollHeight;
-    }, (error) => {
-        console.error("Chat permission error:", error);
-    });
-}
-
-async function sendChatMessage() {
-    const input = document.getElementById('chat-input');
-    if (!input) return;
-
-    const message = input.value.trim();
-    if (!message) return;
-
-    const user = currentUserData || auth.currentUser;
-    if (!user) {
-        alert("Please sign in to send messages.");
-        return;
-    }
-
-    try {
-        const displayName = user.displayName 
-            || (user.email ? user.email.split('@')[0] : "User");
-
-        input.value = "";
-        document.getElementById('emoji-picker')?.classList.add('hidden');
-
-        await db.collection('chat_messages').add({
-            uid: user.uid,
-            username: displayName,
-            message: message,
-            timestamp: firebase.firestore.FieldValue.serverTimestamp()
-        });
-    } catch (err) {
-        console.error("Failed to send message:", err);
-        alert("Failed to send message: " + err.message);
-    }
-}
-
-function toggleEmojiPicker() {
-    const picker = document.getElementById('emoji-picker');
-    if (picker) {
-        picker.classList.toggle('hidden');
-    }
-}
-
-function escapeHTML(str) {
-    if (!str) return "";
-    return String(str).replace(/[&<>'"]/g, 
-        tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
-    );
-}
-
-// ==========================================
-// 9. NAVIGATION, MODALS & LIVE CLOCK
-// ==========================================
-function showView(id) {
-    document.querySelectorAll('.card-view').forEach(v => v.classList.add('hidden'));
-    document.getElementById(id)?.classList.remove('hidden');
-}
-
-function openAccountModal() { document.getElementById('account-modal')?.classList.remove('hidden'); }
-function closeAccountModal() { document.getElementById('account-modal')?.classList.add('hidden'); }
-
-function toggleChatWindow() { 
-    const chatWin = document.getElementById('chat-window');
-    if (!chatWin) return;
-
-    chatWin.classList.toggle('hidden');
-
-    if (!chatWin.classList.contains('hidden')) {
-        localStorage.setItem('lastReadChatTime', new Date().toISOString());
-
-        const badgeEl = document.getElementById('chat-unread-badge');
-        if (badgeEl) {
-            badgeEl.innerText = '0';
-            badgeEl.classList.add('hidden');
-        }
-    }
-}
-
-function runLiveFooterClock() {
-    const el = document.getElementById('live-footer-datetime');
-    if (el) {
-        setInterval(() => {
-            const now = new Date();
-            el.innerText = now.toLocaleDateString(currentLang === 'ar' ? 'ar-BH' : 'en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) + " | " + now.toLocaleTimeString();
-        }, 1000);
-    }
-}
-
-// Attach functions explicitly to global window scope so HTML buttons can invoke them directly
-window.selectRole = selectRole;
-window.signInRoleWithGoogle = signInRoleWithGoogle;
-window.signInWithGoogle = signInWithGoogle;
-window.logoutUser = logoutUser;
-window.deleteAccount = deleteAccount;
-window.addStudentCPR = addStudentCPR;
-window.resetAndAddAnotherCPR = resetAndAddAnotherCPR;
-window.handleSearch = handleSearch;
-window.downloadAllStudentsData = downloadAllStudentsData;
-window.downloadSingleStudentData = downloadSingleStudentData;
-window.updateStudentField = updateStudentField;
-window.deleteStudent = deleteStudent;
-window.addCourseToStudent = addCourseToStudent;
-window.removeCourse = removeCourse;
-window.uploadStudentCV = uploadStudentCV;
-window.deleteStudentCV = deleteStudentCV;
-window.sendChatMessage = sendChatMessage;
-window.toggleEmojiPicker = toggleEmojiPicker;
-window.toggleChatWindow = toggleChatWindow;
-window.openAccountModal = openAccountModal;
-window.closeAccountModal = closeAccountModal;
-window.toggleLanguage = toggleLanguage;
-window.showView = showView;
-
-window.addEventListener('DOMContentLoaded', () => {
-    runLiveFooterClock();
-    applyLanguageTranslations();
-
-    // Emoji click setup
-    const emojiPicker = document.getElementById('emoji-picker');
-    const chatInput = document.getElementById('chat-input');
-    if (emojiPicker && chatInput) {
-        emojiPicker.querySelectorAll('span').forEach(emoji => {
-            emoji.addEventListener('click', () => {
-                chatInput.value += emoji.innerText;
-                chatInput.focus();
-                emojiPicker.classList.add('hidden');
-            });
-        });
-    }
-
-    // Keydown Listener: Enter to Send Chat Message
-    if (chatInput) {
-        chatInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                sendChatMessage();
-            }
-        });
-    }
-
-    // Keydown Listener: Enter to Submit CPR
-    const cprInput = document.getElementById('cpr-input');
-    if (cprInput) {
-        cprInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                addStudentCPR();
-            }
-        });
     }
 });
+
+// Account Management
+function loadAccountData() {
+    const user = auth.currentUser;
+    if (user) {
+        document.getElementById('acc-email').value = user.email;
+        document.getElementById('acc-name').value = user.displayName || '';
+    }
+}
+
+function saveAccountDetails(e) {
+    e.preventDefault();
+    const user = auth.currentUser;
+    const name = document.getElementById('acc-name').value;
+
+    user.updateProfile({ displayName: name }).then(() => {
+        return db.collection('users').doc(user.uid).update({ displayName: name });
+    }).then(() => alert("Account updated successfully."));
+}
+
+// Database Operations: Courses & Classes
+function addCourse(e) {
+    e.preventDefault();
+    const courseName = document.getElementById('course-name').value;
+    db.collection('courses').add({ name: courseName, createdAt: firebase.firestore.FieldValue.serverTimestamp() })
+        .then(() => {
+            document.getElementById('add-course-form').reset();
+            showOperatorSubView('op-courses-view');
+        });
+}
+
+function fetchCourses() {
+    const container = document.getElementById('courses-list');
+    container.innerHTML = '';
+    db.collection('courses').get().then((snapshot) => {
+        snapshot.forEach((doc) => {
+            const card = document.createElement('div');
+            card.className = 'grid-card';
+            card.textContent = doc.data().name;
+            card.onclick = () => openCourse(doc.id, doc.data().name);
+            container.appendChild(card);
+        });
+    });
+}
+
+function openCourse(courseId, courseName) {
+    currentCourseId = courseId;
+    document.getElementById('current-course-title').textContent = `Classes - ${courseName}`;
+    showOperatorSubView('op-classes-view');
+    fetchClasses();
+}
+
+function addClass(e) {
+    e.preventDefault();
+    const className = document.getElementById('class-name').value;
+    db.collection('courses').doc(currentCourseId).collection('classes').add({ name: className })
+        .then(() => {
+            document.getElementById('add-class-form').reset();
+            fetchClasses();
+        });
+}
+
+function fetchClasses() {
+    const container = document.getElementById('classes-list');
+    container.innerHTML = '';
+    db.collection('courses').doc(currentCourseId).collection('classes').get().then((snapshot) => {
+        snapshot.forEach((doc) => {
+            const card = document.createElement('div');
+            card.className = 'grid-card';
+            card.textContent = doc.data().name;
+            card.onclick = () => openClass(doc.id, doc.data().name);
+            container.appendChild(card);
+        });
+    });
+}
+
+// Database Operations: Students
+function openClass(classId, className) {
+    currentClassId = classId;
+    document.getElementById('current-class-title').textContent = `Students - ${className}`;
+    showOperatorSubView('op-students-view');
+    fetchStudents();
+}
+
+function addStudent(e) {
+    e.preventDefault();
+    const studentData = {
+        name: document.getElementById('std-name').value,
+        cpr: document.getElementById('std-cpr').value,
+        status: document.getElementById('std-status').value,
+        comment: document.getElementById('std-comment').value
+    };
+
+    db.collection('courses').doc(currentCourseId)
+      .collection('classes').doc(currentClassId)
+      .collection('students').doc(studentData.cpr).set(studentData)
+      .then(() => {
+          document.getElementById('add-student-form').reset();
+          fetchStudents();
+      });
+}
+
+function fetchStudents() {
+    const tbody = document.getElementById('students-table-body');
+    tbody.innerHTML = '';
+    db.collection('courses').doc(currentCourseId)
+      .collection('classes').doc(currentClassId)
+      .collection('students').get().then((snapshot) => {
+          snapshot.forEach((doc) => {
+              const data = doc.data();
+              const tr = document.createElement('tr');
+              tr.innerHTML = `
+                  <td>${data.name}</td>
+                  <td>${data.cpr}</td>
+                  <td>${data.status}</td>
+                  <td>${data.comment || ''}</td>
+                  <td><button onclick="deleteStudent('${doc.id}')">Delete</button></td>
+              `;
+              tbody.appendChild(tr);
+          });
+      });
+}
+
+function deleteStudent(cpr) {
+    db.collection('courses').doc(currentCourseId)
+      .collection('classes').doc(currentClassId)
+      .collection('students').doc(cpr).delete()
+      .then(() => fetchStudents());
+}
+
+// Export Table to Excel
+function exportToExcel() {
+    const table = document.getElementById("students-table");
+    const wb = XLSX.utils.table_to_sheet(table);
+    const workBook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workBook, wb, "Students");
+    XLSX.writeFile(workBook, "Student_Directory.xlsx");
+}
