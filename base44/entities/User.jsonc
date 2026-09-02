@@ -1,0 +1,35 @@
+{
+  "name": "User",
+  "type": "object",
+  "properties": {
+    "role": {
+      "type": "string",
+      "title": "Role",
+      "enum": [
+        "admin",
+        "manager",
+        "operator",
+        "employee"
+      ],
+      "default": "employee"
+    },
+    "approved": {
+      "type": "boolean",
+      "title": "Approved",
+      "default": false
+    },
+    "pending_notified": {
+      "type": "boolean",
+      "title": "Pending Notified",
+      "default": false
+    },
+    "phone": {
+      "type": "string",
+      "title": "Phone Number"
+    },
+    "department": {
+      "type": "string",
+      "title": "Department"
+    }
+  }
+}
