@@ -1,0 +1,63 @@
+{
+  "name": "Student",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "Student Name"
+    },
+    "cpr": {
+      "type": "string",
+      "title": "CPR Number"
+    },
+    "phone": {
+      "type": "string",
+      "title": "Phone Number"
+    },
+    "tamkeen_status": {
+      "type": "string",
+      "title": "Tamkeen Status",
+      "enum": [
+        "Accepted",
+        "Under Processing",
+        "Withdrawn"
+      ],
+      "default": "Under Processing"
+    },
+    "comment": {
+      "type": "string",
+      "title": "Comment"
+    },
+    "completion_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Completion Date"
+    },
+    "completion_end_date": {
+      "type": "string",
+      "format": "date",
+      "title": "12-Month End Date"
+    },
+    "added_by_user_id": {
+      "type": "string",
+      "title": "Added By User ID"
+    },
+    "added_by_username": {
+      "type": "string",
+      "title": "Added By Username"
+    },
+    "reminder_sent": {
+      "type": "boolean",
+      "title": "1-Month Reminder Sent",
+      "default": false
+    },
+    "final_reminder_sent": {
+      "type": "boolean",
+      "title": "3-Day Reminder Sent",
+      "default": false
+    }
+  },
+  "required": [
+    "name"
+  ]
+}
