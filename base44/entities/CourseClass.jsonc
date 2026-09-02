@@ -1,0 +1,30 @@
+{
+  "name": "CourseClass",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "Class Name"
+    },
+    "course_id": {
+      "type": "string",
+      "title": "Course ID"
+    },
+    "course_name": {
+      "type": "string",
+      "title": "Course Name"
+    },
+    "created_by_user_id": {
+      "type": "string",
+      "title": "Created By User ID"
+    },
+    "created_by_username": {
+      "type": "string",
+      "title": "Created By Username"
+    }
+  },
+  "required": [
+    "name",
+    "course_id"
+  ]
+}
