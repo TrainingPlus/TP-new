@@ -1,0 +1,30 @@
+{
+  "name": "Course",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "Course Name"
+    },
+    "created_by_user_id": {
+      "type": "string",
+      "title": "Created By User ID"
+    },
+    "created_by_username": {
+      "type": "string",
+      "title": "Created By Username"
+    },
+    "created_by_role": {
+      "type": "string",
+      "title": "Created By Role",
+      "enum": [
+        "admin",
+        "manager",
+        "operator"
+      ]
+    }
+  },
+  "required": [
+    "name"
+  ]
+}
