@@ -1,0 +1,50 @@
+{
+  "name": "Enrollment",
+  "type": "object",
+  "properties": {
+    "student_id": {
+      "type": "string",
+      "title": "Student ID"
+    },
+    "student_name": {
+      "type": "string",
+      "title": "Student Name"
+    },
+    "student_cpr": {
+      "type": "string",
+      "title": "Student CPR"
+    },
+    "tamkeen_status": {
+      "type": "string",
+      "title": "Tamkeen Status"
+    },
+    "class_id": {
+      "type": "string",
+      "title": "Class ID"
+    },
+    "class_name": {
+      "type": "string",
+      "title": "Class Name"
+    },
+    "course_id": {
+      "type": "string",
+      "title": "Course ID"
+    },
+    "course_name": {
+      "type": "string",
+      "title": "Course Name"
+    },
+    "source_employee_user_id": {
+      "type": "string",
+      "title": "Source Employee User ID"
+    },
+    "source_employee_username": {
+      "type": "string",
+      "title": "Source Employee Username"
+    }
+  },
+  "required": [
+    "student_id",
+    "class_id"
+  ]
+}
